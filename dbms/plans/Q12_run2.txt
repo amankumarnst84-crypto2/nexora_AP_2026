@@ -1,0 +1,63 @@
+Query: Q12 — Conditional lifecycle transition plus event
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+WITH changed AS (
+    UPDATE orders
+    SET current_status = 'RECEIVED'
+    WHERE order_id = 10002 AND current_status = 'SUBMITTED'
+    RETURNING order_id, current_status
+), event_added AS (
+    INSERT INTO order_status_events
+        (order_id, event_sequence, status, actor_user_id)
+    SELECT c.order_id,
+           (SELECT COALESCE(MAX(e.event_sequence), 0) + 1
+            FROM order_status_events AS e WHERE e.order_id = c.order_id),
+           c.current_status, 1
+    FROM changed AS c
+    RETURNING order_id, event_sequence, status, changed_at
+)
+SELECT c.order_id, c.current_status, e.event_sequence, e.changed_at
+FROM changed AS c
+JOIN event_added AS e ON e.order_id = c.order_id
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Nested Loop  (cost=16.64..16.70 rows=1 width=52) (actual time=0.045..0.049 rows=1.00 loops=1)
+  Join Filter: (c.order_id = e.order_id)
+  Buffers: shared hit=24
+  CTE changed
+    ->  Update on orders  (cost=0.29..8.30 rows=1 width=38) (actual time=0.024..0.026 rows=1.00 loops=1)
+          Buffers: shared hit=14
+          ->  Index Scan using orders_pkey on orders  (cost=0.29..8.30 rows=1 width=38) (actual time=0.004..0.005 rows=1.00 loops=1)
+                Index Cond: (order_id = 10002)
+                Filter: (current_status = 'SUBMITTED'::text)
+                Index Searches: 1
+                Buffers: shared hit=4
+  CTE event_added
+    ->  Insert on order_status_events  (cost=0.00..8.34 rows=1 width=68) (actual time=0.018..0.021 rows=1.00 loops=1)
+          Buffers: shared hit=11
+          ->  CTE Scan on changed c_1  (cost=0.00..8.34 rows=1 width=68) (actual time=0.007..0.009 rows=1.00 loops=1)
+                Storage: Memory  Maximum Storage: 17kB
+                Buffers: shared hit=5
+                SubPlan 3
+                  ->  Result  (cost=8.30..8.31 rows=1 width=4) (actual time=0.004..0.005 rows=1.00 loops=1)
+                        Buffers: shared hit=3
+                        InitPlan 2
+                          ->  Limit  (cost=0.29..8.30 rows=1 width=4) (actual time=0.003..0.003 rows=1.00 loops=1)
+                                Buffers: shared hit=3
+                                ->  Index Only Scan Backward using order_status_events_order_sequence_unique on order_status_events e_1  (cost=0.29..8.30 rows=1 width=4) (actual time=0.002..0.002 rows=1.00 loops=1)
+                                      Index Cond: (order_id = c_1.order_id)
+                                      Heap Fetches: 2
+                                      Index Searches: 1
+                                      Buffers: shared hit=3
+  ->  CTE Scan on changed c  (cost=0.00..0.02 rows=1 width=40) (actual time=0.025..0.025 rows=1.00 loops=1)
+        Storage: Memory  Maximum Storage: 17kB
+        Buffers: shared hit=13
+  ->  CTE Scan on event_added e  (cost=0.00..0.02 rows=1 width=20) (actual time=0.019..0.021 rows=1.00 loops=1)
+        Storage: Memory  Maximum Storage: 17kB
+        Buffers: shared hit=11
+Planning Time: 0.101 ms
+Trigger for constraint order_status_events_order_id_fkey on order_status_events: time=0.020 calls=1
+Trigger for constraint order_status_events_actor_user_id_fkey on order_status_events: time=0.017 calls=1
+Execution Time: 0.101 ms

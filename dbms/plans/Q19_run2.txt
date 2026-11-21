@@ -1,0 +1,29 @@
+Query: Q19 — Insert staff complaint response
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+INSERT INTO complaint_responses (complaint_id, staff_user_id, response_text)
+SELECT c.complaint_id, 1, btrim('Synthetic timing run')
+FROM complaints AS c
+JOIN users AS staff ON staff.user_id = 1 AND staff.role = 'STAFF'
+WHERE c.complaint_id = 1
+  AND length(btrim('Synthetic timing run')) > 0
+RETURNING response_id, complaint_id, response_text, responded_at
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Insert on complaint_responses  (cost=0.00..4.56 rows=1 width=64) (actual time=0.018..0.027 rows=1.00 loops=1)
+  Buffers: shared hit=7
+  ->  Nested Loop  (cost=0.00..4.56 rows=1 width=64) (actual time=0.005..0.014 rows=1.00 loops=1)
+        Buffers: shared hit=4
+        ->  Seq Scan on complaints c  (cost=0.00..1.01 rows=1 width=8) (actual time=0.001..0.002 rows=1.00 loops=1)
+              Filter: (complaint_id = 1)
+              Buffers: shared hit=1
+        ->  Seq Scan on users staff  (cost=0.00..3.53 rows=1 width=0) (actual time=0.002..0.010 rows=1.00 loops=1)
+              Filter: ((user_id = 1) AND (role = 'STAFF'::text))
+              Rows Removed by Filter: 101
+              Buffers: shared hit=2
+Planning Time: 0.044 ms
+Trigger for constraint complaint_responses_complaint_id_fkey: time=0.017 calls=1
+Trigger for constraint complaint_responses_staff_user_id_fkey: time=0.015 calls=1
+Execution Time: 0.066 ms

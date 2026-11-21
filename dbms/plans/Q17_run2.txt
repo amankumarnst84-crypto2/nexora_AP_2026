@@ -1,0 +1,30 @@
+Query: Q17 — Create owner complaint
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+INSERT INTO complaints (order_id, category, description)
+SELECT o.order_id, 'STAINS', btrim('Synthetic timing run')
+FROM orders AS o
+JOIN students AS s ON s.bag_number = o.bag_number
+WHERE o.order_id = 10002
+  AND s.user_id = 2
+  AND length(btrim('Synthetic timing run')) > 0
+RETURNING complaint_id, order_id, category, description, created_at
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Insert on complaints  (cost=0.29..10.58 rows=1 width=88) (actual time=0.028..0.030 rows=1.00 loops=1)
+  Buffers: shared hit=7
+  ->  Nested Loop  (cost=0.29..10.58 rows=1 width=88) (actual time=0.010..0.011 rows=1.00 loops=1)
+        Join Filter: (s.bag_number = o.bag_number)
+        Buffers: shared hit=5
+        ->  Index Scan using orders_pkey on orders o  (cost=0.29..8.30 rows=1 width=17) (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: (order_id = 10002)
+              Index Searches: 1
+              Buffers: shared hit=3
+        ->  Seq Scan on students s  (cost=0.00..2.26 rows=1 width=9) (actual time=0.004..0.004 rows=1.00 loops=1)
+              Filter: (user_id = 2)
+              Buffers: shared hit=1
+Planning Time: 0.076 ms
+Trigger for constraint complaints_order_id_fkey: time=0.025 calls=1
+Execution Time: 0.064 ms

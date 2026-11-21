@@ -1,0 +1,35 @@
+Query: Q10 — Order timeline
+Run: 1
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT e.event_id, e.event_sequence, e.status, e.changed_at,
+       e.actor_user_id, u.full_name AS actor_name
+FROM order_status_events AS e
+JOIN users AS u ON u.user_id = e.actor_user_id
+WHERE e.order_id = 10002
+ORDER BY e.event_sequence DESC
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Sort  (cost=8.63..8.63 rows=1 width=57) (actual time=0.174..0.175 rows=1.00 loops=1)
+  Sort Key: e.event_sequence DESC
+  Sort Method: quicksort  Memory: 17kB
+  Buffers: shared hit=5
+  ->  Merge Join  (cost=8.46..8.62 rows=1 width=57) (actual time=0.171..0.173 rows=1.00 loops=1)
+        Merge Cond: (u.user_id = e.actor_user_id)
+        Buffers: shared hit=5
+        ->  Index Scan using users_pkey on users u  (cost=0.14..14.67 rows=102 width=28) (actual time=0.002..0.003 rows=2.00 loops=1)
+              Index Searches: 1
+              Buffers: shared hit=2
+        ->  Sort  (cost=8.31..8.32 rows=1 width=37) (actual time=0.007..0.008 rows=1.00 loops=1)
+              Sort Key: e.actor_user_id
+              Sort Method: quicksort  Memory: 17kB
+              Buffers: shared hit=3
+              ->  Index Scan Backward using order_status_events_order_sequence_unique on order_status_events e  (cost=0.29..8.30 rows=1 width=37) (actual time=0.004..0.004 rows=1.00 loops=1)
+                    Index Cond: (order_id = 10002)
+                    Index Searches: 1
+                    Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=36
+Planning Time: 0.130 ms
+Execution Time: 0.196 ms

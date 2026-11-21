@@ -1,0 +1,16 @@
+Query: Q05 — Insert order item
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+INSERT INTO order_items (order_id, clothing_type_id, quantity)
+VALUES (10001, 1, 2)
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Insert on order_items  (cost=0.00..0.01 rows=0 width=0) (actual time=0.032..0.033 rows=0.00 loops=1)
+  Buffers: shared hit=4
+  ->  Result  (cost=0.00..0.01 rows=1 width=20) (actual time=0.001..0.002 rows=1.00 loops=1)
+Planning Time: 0.018 ms
+Trigger for constraint order_items_order_id_fkey: time=0.069 calls=1
+Trigger for constraint order_items_clothing_type_id_fkey: time=0.043 calls=1
+Execution Time: 0.157 ms

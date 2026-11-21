@@ -1,0 +1,30 @@
+Query: Q16 — Assign lot to order
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+UPDATE orders AS o
+SET lot_id = wl.lot_id
+FROM washing_lots AS wl
+WHERE o.order_id = 10003
+  AND wl.lot_id = 2
+  AND o.current_status = 'RECEIVED'
+RETURNING o.order_id, o.lot_id
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Update on orders o  (cost=0.29..9.34 rows=1 width=20) (actual time=0.019..0.021 rows=1.00 loops=1)
+  Buffers: shared hit=7
+  ->  Nested Loop  (cost=0.29..9.34 rows=1 width=20) (actual time=0.006..0.007 rows=1.00 loops=1)
+        Buffers: shared hit=4
+        ->  Index Scan using orders_pkey on orders o  (cost=0.29..8.30 rows=1 width=6) (actual time=0.003..0.003 rows=1.00 loops=1)
+              Index Cond: (order_id = 10003)
+              Filter: (current_status = 'RECEIVED'::text)
+              Index Searches: 1
+              Buffers: shared hit=3
+        ->  Seq Scan on washing_lots wl  (cost=0.00..1.02 rows=1 width=14) (actual time=0.002..0.002 rows=1.00 loops=1)
+              Filter: (lot_id = 2)
+              Rows Removed by Filter: 1
+              Buffers: shared hit=1
+Planning Time: 0.034 ms
+Trigger for constraint orders_lot_id_fkey: time=0.020 calls=1
+Execution Time: 0.049 ms

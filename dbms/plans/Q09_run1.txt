@@ -1,0 +1,54 @@
+Query: Q09 — Order detail with item/clothing/lot joins
+Run: 1
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT o.order_id, o.bag_number, s.user_id AS student_user_id,
+       o.submitted_at, o.current_status, wl.lot_id, wl.wash_date, wl.shift,
+       oi.clothing_type_id, ct.name AS clothing_type, oi.quantity
+FROM orders AS o
+JOIN students AS s ON s.bag_number = o.bag_number
+LEFT JOIN washing_lots AS wl ON wl.lot_id = o.lot_id
+LEFT JOIN order_items AS oi ON oi.order_id = o.order_id
+LEFT JOIN clothing_types AS ct ON ct.clothing_type_id = oi.clothing_type_id
+WHERE o.order_id = 10002
+  AND (2::BIGINT IS NULL OR s.user_id = 2)
+ORDER BY ct.name, oi.clothing_type_id
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Sort  (cost=21.04..21.04 rows=1 width=81) (actual time=0.043..0.045 rows=1.00 loops=1)
+  Sort Key: ct.name, oi.clothing_type_id
+  Sort Method: quicksort  Memory: 17kB
+  Buffers: shared hit=11
+  ->  Nested Loop Left Join  (cost=0.57..21.03 rows=1 width=81) (actual time=0.035..0.037 rows=1.00 loops=1)
+        Join Filter: (ct.clothing_type_id = oi.clothing_type_id)
+        Rows Removed by Join Filter: 4
+        Buffers: shared hit=11
+        ->  Nested Loop Left Join  (cost=0.57..19.94 rows=1 width=74) (actual time=0.033..0.034 rows=1.00 loops=1)
+              Buffers: shared hit=10
+              ->  Nested Loop Left Join  (cost=0.29..11.62 rows=1 width=62) (actual time=0.030..0.031 rows=1.00 loops=1)
+                    Join Filter: (wl.lot_id = o.lot_id)
+                    Rows Removed by Join Filter: 2
+                    Buffers: shared hit=8
+                    ->  Nested Loop  (cost=0.29..10.58 rows=1 width=50) (actual time=0.027..0.028 rows=1.00 loops=1)
+                          Join Filter: (s.bag_number = o.bag_number)
+                          Buffers: shared hit=7
+                          ->  Index Scan using orders_pkey on orders o  (cost=0.29..8.30 rows=1 width=42) (actual time=0.018..0.018 rows=1.00 loops=1)
+                                Index Cond: (order_id = 10002)
+                                Index Searches: 1
+                                Buffers: shared hit=6
+                          ->  Seq Scan on students s  (cost=0.00..2.26 rows=1 width=17) (actual time=0.007..0.007 rows=1.00 loops=1)
+                                Filter: (user_id = 2)
+                                Buffers: shared hit=1
+                    ->  Seq Scan on washing_lots wl  (cost=0.00..1.02 rows=2 width=20) (actual time=0.001..0.001 rows=2.00 loops=1)
+                          Buffers: shared hit=1
+              ->  Index Scan using order_items_pkey on order_items oi  (cost=0.29..8.30 rows=1 width=20) (actual time=0.002..0.002 rows=0.00 loops=1)
+                    Index Cond: (order_id = 10002)
+                    Index Searches: 1
+                    Buffers: shared hit=2
+        ->  Seq Scan on clothing_types ct  (cost=0.00..1.04 rows=4 width=15) (actual time=0.001..0.001 rows=4.00 loops=1)
+              Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=25
+Planning Time: 0.386 ms
+Execution Time: 0.063 ms
