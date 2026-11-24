@@ -34,21 +34,21 @@ WHERE u.user_id = $1;
 -- WRITE: Create an order, its item rows, and initial timeline event atomically.
 -- Application must first validate 1..15 total garments and active clothing
 -- types. Resolve bag_number from the authenticated student, never request data.
--- Transaction step 1: lock and resolve the student's fixed bag.
+-- WRITE: Transaction step 1 — lock and resolve the student's fixed bag.
 SELECT s.bag_number
 FROM students AS s
 JOIN users AS u ON u.user_id = s.user_id
 WHERE s.user_id = $1 AND u.role = 'STUDENT'
 FOR UPDATE OF s;
--- Transaction step 2: insert order and return generated ID.
+-- WRITE: Transaction step 2 — insert order and return generated ID.
 INSERT INTO orders (bag_number)
 VALUES ($2)
 RETURNING order_id, bag_number, submitted_at, current_status;
--- Transaction step 3: insert one row per distinct clothing type (repeat for
+-- WRITE: Transaction step 3 — insert one row per distinct clothing type (repeat for
 -- each item, or use a bound multi-row INSERT from the application).
 INSERT INTO order_items (order_id, clothing_type_id, quantity)
 VALUES ($1, $2, $3);
--- Transaction step 4: create the initial event.
+-- WRITE: Transaction step 4 — create the initial event.
 INSERT INTO order_status_events
     (order_id, event_sequence, status, actor_user_id)
 VALUES ($1, 1, 'SUBMITTED', $2);
