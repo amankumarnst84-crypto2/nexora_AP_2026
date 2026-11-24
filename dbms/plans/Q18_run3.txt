@@ -1,0 +1,72 @@
+Query: Q18 — Complaint detail and derived state
+Run: 3
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT c.complaint_id, c.order_id, c.category, c.description, c.created_at,
+       s.user_id AS student_user_id,
+       CASE
+         WHEN cc.complaint_id IS NOT NULL THEN 'RESOLVED'
+         WHEN EXISTS (SELECT 1 FROM complaint_responses r WHERE r.complaint_id = c.complaint_id)
+           THEN 'AWAITING_STUDENT_CONFIRMATION'
+         ELSE 'AWAITING_STAFF'
+       END AS display_state,
+       r.response_id, r.response_text, r.responded_at,
+       staff.full_name AS staff_name,
+       cc.response_id AS confirmed_response_id, cc.confirmed_at
+FROM complaints AS c
+JOIN orders AS o ON o.order_id = c.order_id
+JOIN students AS s ON s.bag_number = o.bag_number
+LEFT JOIN complaint_responses AS r ON r.complaint_id = c.complaint_id
+LEFT JOIN users AS staff ON staff.user_id = r.staff_user_id
+LEFT JOIN complaint_confirmations AS cc ON cc.complaint_id = c.complaint_id
+WHERE c.complaint_id = 1
+  AND (2::BIGINT IS NULL OR s.user_id = 2)
+ORDER BY r.responded_at, r.response_id
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Sort  (cost=14.98..14.99 rows=1 width=162) (actual time=0.039..0.042 rows=1.00 loops=1)
+  Sort Key: r.responded_at, r.response_id
+  Sort Method: quicksort  Memory: 17kB
+  Buffers: shared hit=10
+  ->  Nested Loop Left Join  (cost=1.45..14.97 rows=1 width=162) (actual time=0.017..0.038 rows=1.00 loops=1)
+        Buffers: shared hit=10
+        ->  Nested Loop  (cost=1.45..13.95 rows=1 width=114) (actual time=0.014..0.035 rows=1.00 loops=1)
+              Buffers: shared hit=9
+              ->  Nested Loop  (cost=1.31..13.76 rows=1 width=115) (actual time=0.012..0.033 rows=1.00 loops=1)
+                    Buffers: shared hit=7
+                    ->  Nested Loop Left Join  (cost=1.02..5.46 rows=1 width=106) (actual time=0.009..0.029 rows=1.00 loops=1)
+                          Buffers: shared hit=4
+                          ->  Seq Scan on complaints c  (cost=0.00..1.01 rows=1 width=51) (actual time=0.002..0.002 rows=1.00 loops=1)
+                                Filter: (complaint_id = 1)
+                                Buffers: shared hit=1
+                          ->  Hash Right Join  (cost=1.02..4.44 rows=1 width=63) (actual time=0.006..0.026 rows=1.00 loops=1)
+                                Hash Cond: (staff.user_id = r.staff_user_id)
+                                Buffers: shared hit=3
+                                ->  Seq Scan on users staff  (cost=0.00..3.02 rows=102 width=28) (actual time=0.002..0.010 rows=102.00 loops=1)
+                                      Buffers: shared hit=2
+                                ->  Hash  (cost=1.01..1.01 rows=1 width=51) (actual time=0.002..0.002 rows=1.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 5kB
+                                      Buffers: shared hit=1
+                                      ->  Seq Scan on complaint_responses r  (cost=0.00..1.01 rows=1 width=51) (actual time=0.001..0.001 rows=1.00 loops=1)
+                                            Filter: (complaint_id = 1)
+                                            Buffers: shared hit=1
+                    ->  Index Scan using orders_pkey on orders o  (cost=0.29..8.30 rows=1 width=17) (actual time=0.003..0.003 rows=1.00 loops=1)
+                          Index Cond: (order_id = c.order_id)
+                          Index Searches: 1
+                          Buffers: shared hit=3
+              ->  Index Scan using students_bag_number_key on students s  (cost=0.14..0.16 rows=1 width=17) (actual time=0.002..0.002 rows=1.00 loops=1)
+                    Index Cond: (bag_number = o.bag_number)
+                    Filter: (user_id = 2)
+                    Index Searches: 1
+                    Buffers: shared hit=2
+        ->  Seq Scan on complaint_confirmations cc  (cost=0.00..0.00 rows=1 width=24) (actual time=0.001..0.001 rows=0.00 loops=1)
+              Filter: (complaint_id = 1)
+        SubPlan 1
+          ->  Seq Scan on complaint_responses r_1  (cost=0.00..1.01 rows=1 width=0) (actual time=0.001..0.001 rows=1.00 loops=1)
+                Filter: (complaint_id = c.complaint_id)
+                Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=2
+Planning Time: 0.258 ms
+Execution Time: 0.057 ms
