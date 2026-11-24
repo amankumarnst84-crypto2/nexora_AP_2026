@@ -1,0 +1,67 @@
+Query: Q08 — Staff operational order search
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT o.order_id, o.bag_number, s.user_id AS student_user_id,
+       u.full_name AS student_name, o.submitted_at, o.current_status,
+       wl.wash_date, wl.shift,
+       COALESCE(SUM(oi.quantity), 0) AS garment_count
+FROM orders AS o
+JOIN students AS s ON s.bag_number = o.bag_number
+JOIN users AS u ON u.user_id = s.user_id
+LEFT JOIN washing_lots AS wl ON wl.lot_id = o.lot_id
+LEFT JOIN order_items AS oi ON oi.order_id = o.order_id
+GROUP BY o.order_id, s.user_id, u.full_name, wl.wash_date, wl.shift
+ORDER BY o.submitted_at DESC, o.order_id DESC
+LIMIT 50 OFFSET 0
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Limit  (cost=1246.90..1247.02 rows=50 width=82) (actual time=19.333..19.350 rows=50.00 loops=1)
+  Buffers: shared hit=172
+  ->  Sort  (cost=1246.90..1271.91 rows=10003 width=82) (actual time=19.332..19.338 rows=50.00 loops=1)
+        Sort Key: o.submitted_at DESC, o.order_id DESC
+        Sort Method: top-N heapsort  Memory: 28kB
+        Buffers: shared hit=172
+        ->  HashAggregate  (cost=814.58..914.61 rows=10003 width=82) (actual time=15.529..17.118 rows=10003.00 loops=1)
+              Group Key: o.order_id, s.user_id, u.full_name, wl.wash_date, wl.shift
+              Batches: 1  Memory Usage: 1745kB
+              Buffers: shared hit=172
+              ->  Hash Left Join  (cost=337.68..664.53 rows=10003 width=78) (actual time=2.345..12.292 rows=10003.00 loops=1)
+                    Hash Cond: (o.lot_id = wl.lot_id)
+                    Buffers: shared hit=172
+                    ->  Hash Join  (cost=336.63..581.60 rows=10003 width=74) (actual time=2.339..10.151 rows=10003.00 loops=1)
+                          Hash Cond: (s.user_id = u.user_id)
+                          Buffers: shared hit=171
+                          ->  Hash Join  (cost=332.34..549.96 rows=10003 width=54) (actual time=2.302..7.981 rows=10003.00 loops=1)
+                                Hash Cond: (o.bag_number = s.bag_number)
+                                Buffers: shared hit=169
+                                ->  Hash Right Join  (cost=329.07..519.33 rows=10003 width=46) (actual time=2.278..5.717 rows=10003.00 loops=1)
+                                      Hash Cond: (oi.order_id = o.order_id)
+                                      Buffers: shared hit=168
+                                      ->  Seq Scan on order_items oi  (cost=0.00..164.00 rows=10000 width=12) (actual time=0.005..0.857 rows=10000.00 loops=1)
+                                            Buffers: shared hit=64
+                                      ->  Hash  (cost=204.03..204.03 rows=10003 width=42) (actual time=2.269..2.269 rows=10003.00 loops=1)
+                                            Buckets: 16384  Batches: 1  Memory Usage: 846kB
+                                            Buffers: shared hit=104
+                                            ->  Seq Scan on orders o  (cost=0.00..204.03 rows=10003 width=42) (actual time=0.002..0.866 rows=10003.00 loops=1)
+                                                  Buffers: shared hit=104
+                                ->  Hash  (cost=2.01..2.01 rows=101 width=17) (actual time=0.022..0.022 rows=101.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                      Buffers: shared hit=1
+                                      ->  Seq Scan on students s  (cost=0.00..2.01 rows=101 width=17) (actual time=0.002..0.009 rows=101.00 loops=1)
+                                            Buffers: shared hit=1
+                          ->  Hash  (cost=3.02..3.02 rows=102 width=28) (actual time=0.035..0.035 rows=102.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                Buffers: shared hit=2
+                                ->  Seq Scan on users u  (cost=0.00..3.02 rows=102 width=28) (actual time=0.006..0.017 rows=102.00 loops=1)
+                                      Buffers: shared hit=2
+                    ->  Hash  (cost=1.02..1.02 rows=2 width=20) (actual time=0.003..0.004 rows=2.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 5kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on washing_lots wl  (cost=0.00..1.02 rows=2 width=20) (actual time=0.002..0.002 rows=2.00 loops=1)
+                                Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=40
+Planning Time: 0.664 ms
+Execution Time: 19.391 ms

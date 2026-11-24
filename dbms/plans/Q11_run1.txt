@@ -1,0 +1,35 @@
+Query: Q11 — Latest delay
+Run: 1
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT d.delay_id, d.reason, d.recorded_at,
+       d.staff_user_id, u.full_name AS staff_name
+FROM order_delays AS d
+JOIN users AS u ON u.user_id = d.staff_user_id
+WHERE d.order_id = 10002
+ORDER BY d.recorded_at DESC, d.delay_id DESC
+LIMIT 1
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Limit  (cost=4.45..4.45 rows=1 width=60) (actual time=0.033..0.034 rows=1.00 loops=1)
+  Buffers: shared hit=3
+  ->  Sort  (cost=4.45..4.45 rows=1 width=60) (actual time=0.032..0.033 rows=1.00 loops=1)
+        Sort Key: d.recorded_at DESC, d.delay_id DESC
+        Sort Method: quicksort  Memory: 17kB
+        Buffers: shared hit=3
+        ->  Hash Join  (cost=1.02..4.44 rows=1 width=60) (actual time=0.011..0.030 rows=1.00 loops=1)
+              Hash Cond: (u.user_id = d.staff_user_id)
+              Buffers: shared hit=3
+              ->  Seq Scan on users u  (cost=0.00..3.02 rows=102 width=28) (actual time=0.004..0.012 rows=102.00 loops=1)
+                    Buffers: shared hit=2
+              ->  Hash  (cost=1.01..1.01 rows=1 width=40) (actual time=0.004..0.005 rows=1.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 5kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on order_delays d  (cost=0.00..1.01 rows=1 width=40) (actual time=0.003..0.003 rows=1.00 loops=1)
+                          Filter: (order_id = 10002)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=33
+Planning Time: 0.090 ms
+Execution Time: 0.042 ms
