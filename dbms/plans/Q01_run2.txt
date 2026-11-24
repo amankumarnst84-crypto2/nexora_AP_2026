@@ -1,0 +1,16 @@
+Query: Q01 — Login lookup
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT user_id, login_identifier, full_name, password_hash, role
+FROM users
+WHERE login_identifier = 'student-0001'
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Seq Scan on users  (cost=0.00..3.28 rows=1 width=64) (actual time=0.003..0.008 rows=1.00 loops=1)
+  Filter: (login_identifier = 'student-0001'::text)
+  Rows Removed by Filter: 101
+  Buffers: shared hit=2
+Planning Time: 0.021 ms
+Execution Time: 0.012 ms

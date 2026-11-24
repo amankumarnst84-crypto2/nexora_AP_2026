@@ -1,0 +1,22 @@
+Query: Q02 — Profile with student bag
+Run: 3
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT u.user_id, u.login_identifier, u.full_name, u.role, s.bag_number
+FROM users AS u
+LEFT JOIN students AS s ON s.user_id = u.user_id
+WHERE u.user_id = 2
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+Nested Loop Left Join  (cost=0.00..5.55 rows=1 width=56) (actual time=0.006..0.012 rows=1.00 loops=1)
+  Buffers: shared hit=3
+  ->  Seq Scan on users u  (cost=0.00..3.28 rows=1 width=47) (actual time=0.003..0.008 rows=1.00 loops=1)
+        Filter: (user_id = 2)
+        Rows Removed by Filter: 101
+        Buffers: shared hit=2
+  ->  Seq Scan on students s  (cost=0.00..2.26 rows=1 width=17) (actual time=0.002..0.002 rows=1.00 loops=1)
+        Filter: (user_id = 2)
+        Buffers: shared hit=1
+Planning Time: 0.037 ms
+Execution Time: 0.017 ms

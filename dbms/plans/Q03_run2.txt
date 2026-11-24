@@ -1,0 +1,26 @@
+Query: Q03 — Lock and resolve student bag
+Run: 2
+PostgreSQL: PostgreSQL 18.7 (PGlite 0.5.17) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.13 (e13ee988ce3d87a738dd8f3661d02223308c412a), 32-bit
+Fixture: synthetic, 10,000 collected orders plus two workflow orders; 101 synthetic students; no real data.
+Statement with test values:
+SELECT s.bag_number
+FROM students AS s
+JOIN users AS u ON u.user_id = s.user_id
+WHERE s.user_id = 2 AND u.role = 'STUDENT'
+FOR UPDATE OF s
+
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT):
+LockRows  (cost=0.00..5.81 rows=1 width=21) (actual time=0.013..0.024 rows=1.00 loops=1)
+  Buffers: shared hit=4
+  ->  Nested Loop  (cost=0.00..5.80 rows=1 width=21) (actual time=0.007..0.018 rows=1.00 loops=1)
+        Buffers: shared hit=3
+        ->  Seq Scan on students s  (cost=0.00..2.26 rows=1 width=23) (actual time=0.003..0.008 rows=1.00 loops=1)
+              Filter: (user_id = 2)
+              Rows Removed by Filter: 100
+              Buffers: shared hit=1
+        ->  Seq Scan on users u  (cost=0.00..3.53 rows=1 width=14) (actual time=0.002..0.008 rows=1.00 loops=1)
+              Filter: ((user_id = 2) AND (role = 'STUDENT'::text))
+              Rows Removed by Filter: 101
+              Buffers: shared hit=2
+Planning Time: 0.048 ms
+Execution Time: 0.032 ms
